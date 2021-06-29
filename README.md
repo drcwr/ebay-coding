@@ -1,3 +1,4 @@
+## Email
 Hi Wurui,
 
  
@@ -12,7 +13,7 @@ Shone
 
 
 --------------------
-
+## Problem
 
 Description Suppose there is a web service, for example, the URL is http://www.ebay.com.
 
@@ -83,3 +84,12 @@ Evaluation:
 1. The program could be run directly from local environment.
 
 2. Good performance and robustness of the program is a plus.
+
+
+------------------
+## 思路
+1. 查询 DNS ，获取域名对应的ip列表
+2. 根据ip个数，调度并发发送请求
+3. 判断请求返回
+4. 返回失败，进行重试
+5. 完成该轮请求，统计结果
