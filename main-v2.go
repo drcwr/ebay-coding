@@ -65,7 +65,7 @@ func (r *ReqMng) init() {
 	r.IpNum = len(ips)
 
 	for k, v := range r.Ips {
-		ipm := IpMng{totalNum: r.ReqNum / r.IpNum, retryNum: 5, timeout: 30 + k, ip: v}
+		ipm := IpMng{totalNum: r.ReqNum / r.IpNum, retryNum: 5, timeout: 10 + k, ip: v}
 		ipsMng = append(ipsMng, ipm)
 	}
 	ipsMng[0].totalNum = r.ReqNum - ipsMng[0].totalNum*(r.IpNum-1)
@@ -228,11 +228,15 @@ func geturl(ipm *IpMng) (retry bool, err error) {
 		log.Println(err)
 		return false, err
 	}
+
 	// req.Header.Set("Content-Type", "application/json")
+	t1 := time.Now()
 	client := &http.Client{Timeout: time.Duration(ipm.timeout) * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Println("client.Do  err need retry!!timeout =", ipm.timeout)
+		t2 := time.Now()
+		t3 := t2.Sub(t1).Seconds()
+		log.Println("client.Do  err need retry!!timeout =", ipm.timeout, "usetime", t3)
 		return true, err
 	}
 	defer resp.Body.Close()
