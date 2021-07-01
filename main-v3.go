@@ -240,8 +240,8 @@ func (r *ReqMng) gorun() {
                                                                 log.Println("gorun need retry 4", v.ip)
 
                                                                 v.Status = 2
-                                                                close(v.window)
                                                                 r.m.Lock()
+                                                                close(v.window)
                                                                 log.Println("gorun 8", v.ip)
                                                                 for {
                                                                         log.Println("gorun 9", v.ip)
