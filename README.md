@@ -96,7 +96,7 @@ Evaluation:
 
 
 --------------------------------
-
+```
 go run main-v4.go 
 2021/07/02 14:35:41 [66.211.175.229 216.113.181.253 216.113.179.53 209.140.148.143 64.4.253.77 66.211.172.37 11.0.0.0]
 2021/07/02 14:35:41 init ip 66.211.175.229,	 ipm=main.IpMng{todo:1, windowch:(chan int)(0xc00016c000), okch:(chan int)(0xc0000740e0), done:0, succ:0, retryNum:1, timeout:20, status:0, RTT:0, ip:"66.211.175.229", client:(*http.Client)(nil), m:sync.Mutex{state:0, sema:0x0}}
@@ -138,3 +138,4 @@ go run main-v4.go
 2021/07/02 14:36:04 --------------main 66.211.172.37 	 done: 13 ,succ: 13 ,RTT: 1.087046
 2021/07/02 14:36:04 --------------main 11.0.0.0 	 done: 1 ,succ: 0 ,RTT: 0
 2021/07/02 14:36:04 --------------main  total=101,succ=100
+```
