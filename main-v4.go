@@ -60,7 +60,7 @@ func main() {
 
 	log.Println("\n\n\n")
 	for _, v := range reqs.ipsMng {
-		log.Println("--------------main", v.ip, "\t", "done", v.done, "succ", v.succ, "RTT", v.RTT)
+		log.Println("--------------main", v.ip, "\t", "done:", v.done, ",succ:", v.succ, ",RTT:", v.RTT)
 		done += v.done
 		succ += v.succ
 	}
@@ -148,7 +148,7 @@ func (r *ReqMng) getips() (ips []string, err error) {
 	}
 
 	// debug ip
-	// ips = append(ips, "11.0.0.0")
+	ips = append(ips, "11.0.0.0")
 	// ips = append(ips, "12.0.0.0")
 	return
 }
