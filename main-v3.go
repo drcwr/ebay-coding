@@ -24,6 +24,7 @@ type IpMng struct {
 	retryNum int
 	timeout  int
 	Status   int // 0 syn ;1 ack;2 serverfaild
+	RTT      float64
 	ip       string
 	// ch       chan int
 	m sync.Mutex
@@ -49,7 +50,7 @@ func main() {
 
 	log.Println("\n\n\n")
 	for _, v := range reqs.ipsMng {
-		log.Println("--------------main", v.ip, "\t", "done", v.done, "succ", v.succ)
+		log.Println("--------------main", v.ip, "\t", "done", v.done, "succ", v.succ, "RTT", v.RTT)
 		done += v.done
 		succ += v.succ
 	}
@@ -60,8 +61,8 @@ func (r *ReqMng) init() {
 	var ipsMng = []IpMng{}
 
 	// best value
-	ReqNum := 400
-	httptimeout := 15
+	ReqNum := 1000
+	httptimeout := 20
 	//window := 80 // ReqNum / r.IpNum + r.IpNum/2)
 
 	r.url = "ebay.com"
@@ -77,7 +78,7 @@ func (r *ReqMng) init() {
 	}
 
 	r.IpNum = len(ips)
-	window := ReqNum / (r.IpNum + r.IpNum)
+	window := 10 // ReqNum / (r.IpNum + r.IpNum)
 	r.retrych = make(chan int, r.ReqNum)
 
 	for _, v := range r.Ips {
@@ -241,30 +242,31 @@ func (r *ReqMng) gorun() {
 								r.m.Lock()
 								// close(v.window)
 								// log.Println("v.Status = 2 gorun 8", v.ip)
-							ipforlabel:
-								for {
-									log.Println("v.Status = 2 gorun  FOR", v.ip)
-									select {
-									case val := <-v.windowch:
-										log.Println("v.Status = 2 gorun v.windowch", v.ip)
-										log.Println("status 2 ,val", val)
-										if val > 0 {
-											r.todo++
-											log.Println("v.Status = 2 gorun 9 r.todo", r.todo, v.ip)
-										}
-									default:
-										// log.Println("v.Status = 2 gorun  v.closech 1", v.ip)
-										// v.closech <- 1
-										// log.Println("v.Status = 2 gorun  v.closech 2", v.ip)
-										break ipforlabel
+								// ipforlabel:
+								// for {
+								log.Println("v.Status = 2 gorun  FOR", v.ip)
+								select {
+								case val := <-v.windowch:
+									log.Println("v.Status = 2 del from v.windowch", v.ip)
+									log.Println("status 2 ,val", val)
+									if val > 0 {
+										r.todo++
+										log.Println("v.Status = 2 gorun 9 r.todo", r.todo, v.ip)
 									}
+								default:
+									// log.Println("v.Status = 2 gorun  v.closech 1", v.ip)
+									// v.closech <- 1
+									// log.Println("v.Status = 2 gorun  v.closech 2", v.ip)
+									// break ipforlabel
 								}
+								// }
 								r.m.Unlock()
 								r.retrych <- 1
 							} else if v.Status == 0 {
 								t2 := time.Now()
 								t3 := t2.Sub(t1).Seconds()
 								log.Println("gorun 5,v.Status == 0=>1", v.ip, "RTT", t3)
+								v.RTT = t3
 								v.Status = 1
 								v.okch <- 1
 							}
