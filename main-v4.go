@@ -33,7 +33,7 @@ type IpMng struct {
 	succ     int
 	retryNum int
 	timeout  int
-	Status   int // 0 syn ;1 ack;2 serverfaild
+	status   int // 0 syn ;1 ack;2 serverfaild
 	RTT      float64
 	ip       string
 	client   *http.Client
@@ -41,12 +41,12 @@ type IpMng struct {
 }
 
 type ReqMng struct {
-	IpNum   int
-	ReqNum  int
+	ipNum   int
+	reqNum  int
 	todo    int
 	retrych chan int
 	url     string
-	Ips     []string
+	ips     []string
 	ipsMng  []IpMng
 	m       sync.Mutex
 }
@@ -75,22 +75,22 @@ func (r *ReqMng) init() {
 	httptimeout := 20
 
 	r.url = "ebay.com"
-	r.ReqNum = ReqNum
-	r.todo = r.ReqNum
+	r.reqNum = ReqNum
+	r.todo = r.reqNum
 
 	ips, err := r.getips()
 	if err != nil {
 		log.Fatal(err)
 	} else {
 		log.Println(ips)
-		r.Ips = ips
+		r.ips = ips
 	}
 
-	r.IpNum = len(ips)
+	r.ipNum = len(ips)
 	window := 10 // ReqNum / (r.IpNum + r.IpNum)
-	r.retrych = make(chan int, r.ReqNum)
+	r.retrych = make(chan int, r.reqNum)
 
-	for _, v := range r.Ips {
+	for _, v := range r.ips {
 		ipm := IpMng{todo: 0, retryNum: 1, timeout: httptimeout, ip: v}
 		ipm.windowch = make(chan int, window)
 		ipm.okch = make(chan int, 1)
@@ -154,10 +154,10 @@ func (r *ReqMng) getips() (ips []string, err error) {
 }
 
 func (im *IpMng) getToken(r *ReqMng) bool {
-	if im.Status == LINK_STATUS_ERROR {
+	if im.status == LINK_STATUS_ERROR {
 		return false
 	}
-	if im.Status == 0 {
+	if im.status == LINK_STATUS_START {
 		<-im.okch
 	}
 	im.todo = r.getNum()
@@ -185,7 +185,7 @@ func (r *ReqMng) getNum() int {
 }
 func (r *ReqMng) gorun() {
 	wg := sync.WaitGroup{}
-	wg.Add(r.ReqNum)
+	wg.Add(r.reqNum)
 	for k, _ := range r.ipsMng {
 		go func(v *IpMng) {
 			ok := true
@@ -193,11 +193,12 @@ func (r *ReqMng) gorun() {
 				if ok {
 					v.windowch <- 1
 					go func(v *IpMng) {
-						i := 0
-						retry := false
-						var err error
+						var (
+							i     = 0
+							retry = false
+							err   error
+						)
 						t1 := time.Now()
-
 						for i = 0; i < v.retryNum; i++ {
 							retry, err = GetUrl(v)
 							if err != nil {
@@ -217,7 +218,7 @@ func (r *ReqMng) gorun() {
 
 						v.m.Lock()
 						if retry && i == v.retryNum {
-							v.Status = LINK_STATUS_ERROR
+							v.status = LINK_STATUS_ERROR
 							r.m.Lock()
 							log.Println("v.Status = 2 gorun  FOR", v.ip)
 							select {
@@ -232,12 +233,12 @@ func (r *ReqMng) gorun() {
 							}
 							r.m.Unlock()
 							r.retrych <- 1
-						} else if v.Status == LINK_STATUS_START {
+						} else if v.status == LINK_STATUS_START {
 							t2 := time.Now()
 							t3 := t2.Sub(t1).Seconds()
 							log.Println("gorun 5,v.Status == 0=>1", v.ip, "RTT", t3)
 							v.RTT = t3
-							v.Status = LINK_STATUS_SUCC
+							v.status = LINK_STATUS_SUCC
 							v.okch <- 1
 						}
 						v.done++
