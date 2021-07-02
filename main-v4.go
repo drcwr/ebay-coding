@@ -62,7 +62,7 @@ func (r *ReqMng) init() {
 	var ipsMng = []IpMng{}
 
 	// best value
-	ReqNum := 1000
+	ReqNum := 100
 	httptimeout := 20
 	//window := 80 // ReqNum / r.IpNum + r.IpNum/2)
 
@@ -79,7 +79,7 @@ func (r *ReqMng) init() {
 	}
 
 	r.IpNum = len(ips)
-	window := 30 // ReqNum / (r.IpNum + r.IpNum)
+	window := 10 // ReqNum / (r.IpNum + r.IpNum)
 	r.retrych = make(chan int, r.ReqNum)
 
 	for _, v := range r.Ips {
@@ -141,8 +141,8 @@ func (r *ReqMng) getips() (ips []string, err error) {
 	}
 
 	// debug ip
-	ips = append(ips, "11.0.0.0")
-	ips = append(ips, "12.0.0.0")
+	// ips = append(ips, "11.0.0.0")
+	// ips = append(ips, "12.0.0.0")
 	return
 }
 
