@@ -13,12 +13,22 @@ import (
 	"time"
 )
 
+const (
+	LINK_STATUS_START = iota // 0
+	LINK_STATUS_SUCC         // 1
+	LINK_STATUS_ERROR        // 2
+)
+
+const (
+	READ_INIT  = iota // 0
+	READ_START        // 1
+	READ_END          // 2
+)
+
 type IpMng struct {
-	// doing    int
 	todo     int
 	windowch chan int
 	okch     chan int
-	// closech  chan int
 	done     int
 	succ     int
 	retryNum int
@@ -27,8 +37,7 @@ type IpMng struct {
 	RTT      float64
 	ip       string
 	client   *http.Client
-	// ch       chan int
-	m sync.Mutex
+	m        sync.Mutex
 }
 
 type ReqMng struct {
@@ -64,7 +73,6 @@ func (r *ReqMng) init() {
 	// best value
 	ReqNum := 100
 	httptimeout := 20
-	//window := 80 // ReqNum / r.IpNum + r.IpNum/2)
 
 	r.url = "ebay.com"
 	r.ReqNum = ReqNum
@@ -83,11 +91,10 @@ func (r *ReqMng) init() {
 	r.retrych = make(chan int, r.ReqNum)
 
 	for _, v := range r.Ips {
-		// ipm := IpMng{todo: 0, window: r.ReqNum / r.IpNum, retryNum: 1, timeout: 10, ip: v}
 		ipm := IpMng{todo: 0, retryNum: 1, timeout: httptimeout, ip: v}
 		ipm.windowch = make(chan int, window)
 		ipm.okch = make(chan int, 1)
-		// ipm.closech = make(chan int, window)
+
 		if r.todo > 0 {
 			ipm.todo = 1
 			r.todo--
@@ -115,24 +122,24 @@ func (r *ReqMng) getips() (ips []string, err error) {
 		}
 
 		reader := bufio.NewReader(stdout)
-		start := 0 // init
+		start := READ_INIT // init
 		for {
 			line, err2 := reader.ReadString('\n')
 			if err2 != nil || io.EOF == err2 {
 				break
 			}
-			if start == 1 && line == "\n" {
-				start = 2 // end
+			if start == READ_START && line == "\n" {
+				start = READ_END // end
 				break
 			}
-			if start == 0 && line == ";; ANSWER SECTION:\n" {
-				start = 1 // start
+			if start == READ_INIT && line == ";; ANSWER SECTION:\n" {
+				start = READ_START // start
 				continue
 			}
-			if start == 1 {
+			if start == READ_START {
 				rec := strings.Split(line[:len(line)-1], "\t")
 				ip := rec[len(rec)-1]
-				err := checkip(ip)
+				err := CheckIp(ip)
 				if err == nil {
 					ips = append(ips, ip)
 				}
@@ -147,8 +154,7 @@ func (r *ReqMng) getips() (ips []string, err error) {
 }
 
 func (im *IpMng) getToken(r *ReqMng) bool {
-	// log.Println("getToken 00",im.ip)
-	if im.Status == 2 {
+	if im.Status == LINK_STATUS_ERROR {
 		return false
 	}
 	if im.Status == 0 {
@@ -163,7 +169,6 @@ func (im *IpMng) getToken(r *ReqMng) bool {
 }
 
 func (r *ReqMng) getNum() int {
-	// log.Println("getNum 00")
 	if r.todo <= 0 {
 		log.Println("getNum 01 r.todo <= 0 wait <-r.retrych")
 		<-r.retrych
@@ -171,10 +176,8 @@ func (r *ReqMng) getNum() int {
 	}
 	if r.todo > 0 {
 		r.m.Lock()
-		// log.Println("---------getNum r.todo", r.todo)
-		num := 1 //(r.todo + r.IpNum - 1) / r.IpNum
+		num := 1
 		r.todo -= num
-		// log.Println("---------getNum r.todo", r.todo, "num", num)
 		r.m.Unlock()
 		return num
 	}
@@ -185,96 +188,61 @@ func (r *ReqMng) gorun() {
 	wg.Add(r.ReqNum)
 	for k, _ := range r.ipsMng {
 		go func(v *IpMng) {
-			ok := true // v.getToken(r)
-			// reqforlabel:
+			ok := true
 			for {
-				// log.Printf("gorun start %s %v %d\n", v.ip, ok, v.todo)
 				if ok {
-					todo := true
-					// log.Println("gorun 1", v.ip)
-					// v.m.Lock()
-					// log.Printf("gorun %s %v %d lock\n", v.ip, ok, v.todo)
-					// if v.todo > 0 {
-					//      v.todo--
-					//      todo = true
-					// }
-					// v.m.Unlock()
-					if todo {
-						// log.Println("gorun 2", v.ip)
-						v.windowch <- 1
-						go func(v *IpMng) {
-							i := 0
-							retry := false
-							var err error
-							t1 := time.Now()
+					v.windowch <- 1
+					go func(v *IpMng) {
+						i := 0
+						retry := false
+						var err error
+						t1 := time.Now()
 
-							for i = 0; i < v.retryNum; i++ {
-								// log.Println("gorun 3", v.ip)
-								retry, err = geturl(v)
-								// log.Println("gorun 4", v.ip)
-								if err != nil {
-									log.Println("go run geturl err,", err)
-								}
-								// log.Println("gorun 5", v.ip)
-								if retry == false {
-									// log.Println("gorun 6", v.ip)
-									<-v.windowch
-									// log.Println("gorun 7", v.ip)
-									// log.Println("Lock-----------------------------Lock 1", v.ip)
-									v.m.Lock()
-									// log.Println("Lock-----------------------------Lock 2", v.ip)
-									v.succ++
-									// log.Println("Lock-----------------------------unLock", v.ip)
-									v.m.Unlock()
-									wg.Done()
-									break
-								} else {
-									time.Sleep(time.Duration(2^i) * time.Second)
-								}
-								// log.Println("gorun geturl retry", v.ip)
+						for i = 0; i < v.retryNum; i++ {
+							retry, err = GetUrl(v)
+							if err != nil {
+								log.Println("go run GetUrl err,", err)
 							}
-							// log.Println("gorun 8", v.ip)
-
-							v.m.Lock()
-							if retry && i == v.retryNum {
-								log.Println("gorun need retry v.Status => 2", v.ip)
-
-								v.Status = 2
-								r.m.Lock()
-								// close(v.window)
-								// log.Println("v.Status = 2 gorun 8", v.ip)
-								// ipforlabel:
-								// for {
-								log.Println("v.Status = 2 gorun  FOR", v.ip)
-								select {
-								case val := <-v.windowch:
-									log.Println("v.Status = 2 del from v.windowch", v.ip)
-									log.Println("status 2 ,val", val)
-									if val > 0 {
-										r.todo++
-										log.Println("v.Status = 2 gorun 9 r.todo", r.todo, v.ip)
-									}
-								default:
-									// log.Println("v.Status = 2 gorun  v.closech 1", v.ip)
-									// v.closech <- 1
-									// log.Println("v.Status = 2 gorun  v.closech 2", v.ip)
-									// break ipforlabel
-								}
-								// }
-								r.m.Unlock()
-								r.retrych <- 1
-							} else if v.Status == 0 {
-								t2 := time.Now()
-								t3 := t2.Sub(t1).Seconds()
-								log.Println("gorun 5,v.Status == 0=>1", v.ip, "RTT", t3)
-								v.RTT = t3
-								v.Status = 1
-								v.okch <- 1
+							if retry == false {
+								<-v.windowch
+								v.m.Lock()
+								v.succ++
+								v.m.Unlock()
+								wg.Done()
+								break
+							} else {
+								time.Sleep(time.Duration(2^i) * time.Second)
 							}
-							v.done++
-							v.m.Unlock()
-						}(v)
-					}
+						}
+
+						v.m.Lock()
+						if retry && i == v.retryNum {
+							v.Status = LINK_STATUS_ERROR
+							r.m.Lock()
+							log.Println("v.Status = 2 gorun  FOR", v.ip)
+							select {
+							case val := <-v.windowch:
+								log.Println("v.Status = 2 del from v.windowch", v.ip)
+								log.Println("status 2 ,val", val)
+								if val > 0 {
+									r.todo++
+									log.Println("v.Status = 2 gorun 9 r.todo", r.todo, v.ip)
+								}
+							default:
+							}
+							r.m.Unlock()
+							r.retrych <- 1
+						} else if v.Status == LINK_STATUS_START {
+							t2 := time.Now()
+							t3 := t2.Sub(t1).Seconds()
+							log.Println("gorun 5,v.Status == 0=>1", v.ip, "RTT", t3)
+							v.RTT = t3
+							v.Status = LINK_STATUS_SUCC
+							v.okch <- 1
+						}
+						v.done++
+						v.m.Unlock()
+					}(v)
 				}
 				ok = v.getToken(r)
 			}
@@ -285,13 +253,13 @@ func (r *ReqMng) gorun() {
 	// time.Sleep(2 * time.Second)
 }
 
-func checkip(ip string) error {
+func CheckIp(ip string) error {
 	arr := strings.Split(ip, ".")
 	if len(arr) == 4 {
 		for _, val := range arr {
-			_, err := getipnum(val)
+			_, err := GetIpNum(val)
 			if err != nil {
-				log.Println("not ip", arr)
+				log.Println("invalid ip", arr)
 				return fmt.Errorf("check ip error,%v\n", arr)
 			}
 		}
@@ -300,16 +268,16 @@ func checkip(ip string) error {
 	return fmt.Errorf("check ip error,%v\n", arr)
 }
 
-func getipnum(ip string) (int, error) {
+func GetIpNum(ip string) (int, error) {
 	ipnum, err := strconv.Atoi(ip)
 	if err != nil || ipnum > 255 || ipnum < 0 {
-		log.Println("not ip", ip)
+		log.Println("invalid ip", ip)
 		return 0, err
 	}
 	return ipnum, nil
 }
 
-func geturl(ipm *IpMng) (retry bool, err error) {
+func GetUrl(ipm *IpMng) (retry bool, err error) {
 	ipm.m.Lock()
 	if ipm.client == nil {
 		// req.Header.Set("Content-Type", "application/json")
@@ -326,17 +294,15 @@ func geturl(ipm *IpMng) (retry bool, err error) {
 	resp, err := ipm.client.Do(req)
 	t2 := time.Now()
 	t3 := t2.Sub(t1).Seconds()
-	// log.Println("client.Do  usetime", t3, "----------", ipm.ip)
 	if err != nil {
 		log.Println("client.Do ", ipm.ip, " err need retry!!timeout =", ipm.timeout, "usetime", t3)
 		return true, err
 	}
 	defer resp.Body.Close()
 
-	// log.Println("geturl ", ipm.ip, ",\tresp.StatusCode", resp.StatusCode)
 	if resp.StatusCode < 200 || resp.StatusCode > 500 {
 		log.Println("need retry!! resp.StatusCode", resp.StatusCode)
-		return true, err
+		return true, fmt.Errorf("resp.StatusCode =%d,error", resp.StatusCode)
 	}
 
 	return
