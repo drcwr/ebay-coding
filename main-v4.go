@@ -71,7 +71,7 @@ func (r *ReqMng) init() {
 	var ipsMng = []IpMng{}
 
 	// best value
-	ReqNum := 100
+	ReqNum := 400
 	httptimeout := 20
 
 	r.url = "ebay.com"
@@ -148,7 +148,7 @@ func (r *ReqMng) getips() (ips []string, err error) {
 	}
 
 	// debug ip
-	ips = append(ips, "11.0.0.0")
+	// ips = append(ips, "11.0.0.0")
 	// ips = append(ips, "12.0.0.0")
 	return
 }
@@ -190,6 +190,9 @@ func (r *ReqMng) gorun() {
 		go func(v *IpMng) {
 			ok := true
 			for {
+				if v.status == LINK_STATUS_ERROR {
+					break
+				}
 				if ok {
 					v.windowch <- 1
 					go func(v *IpMng) {
